@@ -1,0 +1,26 @@
+version: 2
+
+models:
+  - name: fraud_rules_baseline
+    description: >
+      Rule-based fraud detection baseline built on features_transactions.
+      Thresholds chosen on the train period only. is_fraud and fraud_type are
+      for evaluation only and are never used by the rules.
+    columns:
+      - name: transaction_id
+        tests:
+          - unique
+          - not_null
+      - name: dataset_split
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['train', 'test', 'demo']
+      - name: rule_alert
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [0, 1]
+                quote: false

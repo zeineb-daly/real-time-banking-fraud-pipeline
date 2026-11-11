@@ -1,63 +1,73 @@
-name: CD
+name: CD (dbt build on Snowflake)
 
+# Manual only: every run consumes Snowflake credits.
+# Start it from GitHub > Actions > "CD (dbt build on Snowflake)" > Run workflow.
 on:
-  push:
-    branches: [ main ]   # deploy only from main
+  workflow_dispatch:
+    inputs:
+      select:
+        description: "dbt selector (empty = whole project)"
+        required: false
+        default: ""
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+      SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
+      SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+      SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
+      SNOWFLAKE_ROLE: ${{ secrets.SNOWFLAKE_ROLE }}
+      SNOWFLAKE_DB: BANKING
 
     steps:
-      # ------------------------
-      # Checkout repo
-      # ------------------------
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      # ------------------------
-      # Python setup
-      # ------------------------
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.11"
-
-      # ------------------------
-      # Install dbt
-      # ------------------------
-      - name: Install dbt Snowflake adapter
+      - name: Check required secrets
         run: |
-          python -m pip install --upgrade pip
-          pip install dbt-snowflake
+          missing=0
+          for name in SNOWFLAKE_ACCOUNT SNOWFLAKE_USER SNOWFLAKE_PASSWORD SNOWFLAKE_WAREHOUSE SNOWFLAKE_ROLE; do
+            if [ -z "${!name}" ]; then echo "::error::Missing repository secret $name"; missing=1; fi
+          done
+          exit $missing
 
-      # ------------------------
-      # Configure dbt profile
-      # ------------------------
-      - name: Setup dbt profile
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dbt (same versions as requirements.txt)
+        run: pip install "dbt-core==1.12.6" "dbt-snowflake==1.12.5"
+
+      # A dedicated role with rights on the BANKING database only — never ACCOUNTADMIN
+      - name: Write dbt profile
         run: |
           mkdir -p ~/.dbt
-          cat > ~/.dbt/profiles.yml <<EOL
+          cat > ~/.dbt/profiles.yml <<'EOF'
           banking_dbt:
             target: prod
             outputs:
               prod:
                 type: snowflake
-                account: ${{ secrets.SNOWFLAKE_ACCOUNT }}
-                user: ${{ secrets.SNOWFLAKE_USER }}
-                password: ${{ secrets.SNOWFLAKE_PASSWORD }}
-                role: ACCOUNTADMIN
-                database: BANKING
-                warehouse: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
+                account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
+                user: "{{ env_var('SNOWFLAKE_USER') }}"
+                password: "{{ env_var('SNOWFLAKE_PASSWORD') }}"
+                role: "{{ env_var('SNOWFLAKE_ROLE') }}"
+                warehouse: "{{ env_var('SNOWFLAKE_WAREHOUSE') }}"
+                database: "{{ env_var('SNOWFLAKE_DB') }}"
                 schema: ANALYTICS
-          EOL
+                threads: 4
+          EOF
 
-      # ------------------------
-      # Deploy dbt project
-      # ------------------------
-      - name: dbt run + test (prod)
+      - name: dbt build (run + test)
+        working-directory: banking_dbt
+        env:
+          DBT_SELECT: ${{ inputs.select }}   # passed via env, never interpolated into the script
         run: |
-          cd banking_dbt
-          dbt deps
-          dbt run    # builds production models on Snowflake
-          dbt test   # validates production data
+          if [ -n "$DBT_SELECT" ]; then
+            dbt build --select "$DBT_SELECT"
+          else
+            dbt build
+          fi

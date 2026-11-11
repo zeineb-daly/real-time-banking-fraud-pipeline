@@ -1,17 +1,23 @@
-#data-generator
-pyyaml
-psycopg2-binary
-faker
+# Python 3.12 — scripts that run on the host (generator, connector registration, consumer) and dbt.
+# Versions tested together in a fresh Python 3.12 virtual environment.
+# The ML notebook has its own environment (ml/Dockerfile).
 
-#CDC
-python-dotenv
-requests
+# data-generator
+PyYAML==6.0.3
+psycopg2-binary==2.9.13
+Faker==40.54.0
 
-#Consumer
-kafka-python
-boto3
-fastparquet
-pandas
+# CDC (connector registration) + shared
+python-dotenv==1.2.4
+requests==2.34.2
 
-#dbt
-dbt-snowflake
+# consumer
+kafka-python==3.0.13
+boto3==1.44.0
+fastparquet==2026.9.0
+pandas==3.1.1
+
+# dbt — dbt-core pinned explicitly: dbt-snowflake allows pre-releases (>=1.10.0rc0),
+# so without this pin pip installs a dbt-core beta.
+dbt-core==1.12.6
+dbt-snowflake==1.12.5

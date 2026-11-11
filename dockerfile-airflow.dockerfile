@@ -1,8 +1,6 @@
-# Dockerfile-airflow
+# Airflow image with dbt (Python 3.12, same dbt versions as requirements.txt)
 FROM apache/airflow:2.9.3
 
-# Switch to airflow user first
 USER airflow
 
-# Install dbt packages
-RUN pip install --no-cache-dir dbt-core dbt-snowflake
+RUN pip install --no-cache-dir "dbt-core==1.12.6" "dbt-snowflake==1.12.5"

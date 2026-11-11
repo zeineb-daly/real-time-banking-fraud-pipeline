@@ -21,8 +21,5 @@ clean-targets:
 # Model configuration
 models:
   banking_dbt:
-    
-    # Example models configuration
-    # All models inside this folder will be created as views by default
-    example:
-      +materialized: view
+    # Default materialization; models override it in their own config() block
+    +materialized: view

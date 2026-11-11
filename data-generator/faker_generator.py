@@ -17,7 +17,7 @@ import time
 import uuid
 from collections import Counter
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import ROUND_DOWN, Decimal
 
 import psycopg2
@@ -341,7 +341,7 @@ class Generator:
 
     # ---------- iteration ----------
     def run_iteration(self) -> list[tuple]:
-        self.now = datetime.now(timezone.utc)
+        self.now = datetime.now(UTC)
         self.window_start = self.now - timedelta(days=self.cfg["run"]["history_days"])
         self.truth = {}
 
