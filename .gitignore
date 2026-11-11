@@ -14,7 +14,6 @@ banking_dbt/logs/
 banking_dbt/macros/
 banking_dbt/seeds/
 banking_dbt/target/
-banking_dbt/tests/
 
 .env
 __pycache__/
