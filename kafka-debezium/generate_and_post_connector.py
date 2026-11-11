@@ -1,5 +1,7 @@
-import os
 import json
+import os
+import sys
+
 import requests
 from dotenv import load_dotenv
 
@@ -15,8 +17,10 @@ connector_config = {
     "name": "postgres-connector",
     "config": {
         "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
-        "database.hostname": os.getenv("POSTGRES_HOST"),
-        "database.port": os.getenv("POSTGRES_PORT"),
+        # Debezium runs INSIDE Docker: it must reach Postgres by its service name and
+        # internal port, not by the localhost:5432 used by scripts on the host.
+        "database.hostname": os.getenv("DEBEZIUM_DB_HOST", "postgres"),
+        "database.port": os.getenv("DEBEZIUM_DB_PORT", "5432"),
         "database.user": os.getenv("POSTGRES_USER"),
         "database.password": os.getenv("POSTGRES_PASSWORD"),
         "database.dbname": os.getenv("POSTGRES_DB"),
@@ -39,7 +43,8 @@ connector_config = {
 # Create or update the connector (PUT .../config is idempotent)
 # -----------------------------
 name = connector_config["name"]
-url = f"http://localhost:8083/connectors/{name}/config"
+connect_url = os.getenv("KAFKA_CONNECT_URL", "http://localhost:8083")
+url = f"{connect_url}/connectors/{name}/config"
 headers = {"Content-Type": "application/json"}
 
 response = requests.put(url, headers=headers, data=json.dumps(connector_config["config"]))
@@ -53,3 +58,4 @@ elif response.status_code == 200:
     print("Connector updated successfully!")
 else:
     print(f"Failed to create/update connector ({response.status_code}): {response.text}")
+    sys.exit(1)
