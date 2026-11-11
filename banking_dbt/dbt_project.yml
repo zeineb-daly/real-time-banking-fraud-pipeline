@@ -1,0 +1,28 @@
+# DBT Project Configuration
+name: "banking_dbt"
+version: "1.0.0"
+
+# Profile used by dbt to connect with the data warehouse
+profile: "banking_dbt"
+
+# Project directory structure
+# These paths tell dbt where different resources are located
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+snapshot-paths: ["snapshots"]
+
+# Directories that should be removed when running `dbt clean`
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+# Model configuration
+models:
+  banking_dbt:
+    
+    # Example models configuration
+    # All models inside this folder will be created as views by default
+    example:
+      +materialized: view
