@@ -1,11 +1,12 @@
 import os
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timedelta
+
 import boto3
 import snowflake.connector
 from airflow import DAG
 from airflow.operators.python import PythonOperator
-from datetime import datetime, timedelta
 from dotenv import load_dotenv
-from concurrent.futures import ThreadPoolExecutor
 
 # -----------------------------
 # Load environment variables

@@ -18,7 +18,7 @@ import csv
 import os
 import sys
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 
@@ -74,7 +74,7 @@ def parse_args():
         p.error("--rate must be >= 0")
     args.start = datetime.fromisoformat(args.start_date)
     if args.start.tzinfo is None:
-        args.start = args.start.replace(tzinfo=timezone.utc)
+        args.start = args.start.replace(tzinfo=UTC)
     if args.batch_size is None:
         args.batch_size = 1000 if args.rate == 0 else max(1, min(1000, int(args.rate // 10)))
     return args
