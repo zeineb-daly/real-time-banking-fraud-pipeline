@@ -1,0 +1,100 @@
+# =============================================================
+# Faker data generator configuration
+# Secrets (DB credentials) stay in .env — this file is safe to commit.
+# Override the path with --config or the GENERATOR_CONFIG env var.
+# =============================================================
+
+seed: null                      # set an int for reproducible datasets
+
+volume:                         # 2000 * 5 * 10 = 100k normal transactions / iteration
+  num_customers: 2000
+  accounts_per_customer: 5
+  transactions_per_account: 10
+
+run:
+  loop: true                    # --once overrides this
+  sleep_seconds: 2
+  history_days: 60              # transactions are spread over [now - 60 days, now]
+
+accounts:
+  currency: USD
+  types: [SAVINGS, CHECKING]
+  initial_balance_min: 10.00
+  initial_balance_max: 1000.00
+
+transactions:
+  max_amount: 5000.00           # hard cap for every transaction (legit or fraud)
+  home_country: US
+  foreign_countries: [CA, MX, GB, FR, DE, ES, BR, NG, RU, CN, IN, AE]
+  type_weights:
+    PAYMENT: 0.45
+    WITHDRAWAL: 0.20
+    DEPOSIT: 0.20
+    TRANSFER: 0.15
+  channels_by_type:             # channel is drawn uniformly from the list
+    PAYMENT: [POS, ONLINE, MOBILE]
+    WITHDRAWAL: [ATM, BRANCH]
+    DEPOSIT: [BRANCH, ATM, MOBILE]
+    TRANSFER: [ONLINE, MOBILE, BRANCH]
+  merchant_categories:
+    [GROCERY, RESTAURANT, FUEL, TRAVEL, ELECTRONICS, CLOTHING, ONLINE_RETAIL, DIGITAL_GOODS, UTILITIES, HEALTH]
+
+# Each customer gets a stable "normal behaviour" profile; fraud is a deviation from it.
+customer_profile:
+  avg_amount_min: 20.0
+  avg_amount_max: 200.0
+  amount_sigma: 0.6             # log-normal spread around the customer's average
+  devices_min: 1
+  devices_max: 3
+  active_start_hour: [6, 10]    # each customer starts their day between 06:00 and 10:00 (UTC)...
+  active_end_hour: [20, 24]     # ...and stops between 20:00 and 24:00
+  account_age_days: [30, 1500]  # accounts were opened this long before the history window
+
+# Legit-but-unusual behaviour, so the model can't learn "foreign = fraud" or "burst = fraud".
+legit_noise:
+  traveler_rate: 0.12           # share of customers who take a trip abroad during the period
+  trip_days: [3, 12]            #   all their transactions during the trip happen abroad
+  device_change_rate: 0.15      # share of customers who switch to a new phone during the period
+  one_off_device_rate: 0.01     # per transaction: legit use of an unseen device (work PC, friend's phone)
+  large_purchase_rate: 0.02     # per transaction: amount 3-10x the customer's average
+  night_rate: 0.04              # per transaction: legit activity between 00:00 and 05:00
+  spree_rate: 0.08              # share of customers with one legit burst of payments (shopping spree)
+  spree_txns: [3, 8]
+  spree_window_minutes: 30
+
+fraud:
+  enabled: true
+  account_rate: 0.02            # share of accounts hit by one fraud scenario per iteration
+  mule_pool_size: 50            # accounts that receive fraudulent transfers
+  partial_rate: 0.30            # share of fraud events that only show 1-2 signals (stealthy fraud)
+  partial_signals: [1, 2]
+  unlabeled_rate: 0.05          # share of fraud events stored as legit (is_fraud = false), like undetected fraud
+  spread_window_minutes: 360    # duration of a fraud event when it has no "burst" signal (6 hours)
+  # Signals a scenario can show, with their probability for a full (non-partial) fraud event:
+  #   new_device | foreign | night | burst (many txns in minutes) | high_amount
+  scenarios:
+    account_takeover:           # stolen credentials: new device, abroad, large withdrawals/transfers
+      weight: 0.30
+      txns: [1, 3]
+      amount_multiplier: [3, 10]
+      window_minutes: 30
+      signals: {new_device: 1.0, foreign: 0.9, night: 0.6, high_amount: 1.0}
+    card_testing:               # tiny online payments to test a stolen card, then a big one
+      weight: 0.30
+      txns: [5, 15]
+      small_amount: [0.50, 5.00]
+      amount_multiplier: [5, 15]  # final payment (if high_amount)
+      window_minutes: 10
+      signals: {burst: 1.0, new_device: 0.9, foreign: 0.5, night: 0.6, high_amount: 1.0}
+    balance_draining:           # most of the balance moved to a mule account
+      weight: 0.20
+      drain_ratio: [0.80, 1.00]
+      splits: [1, 3]
+      window_minutes: 20
+      signals: {high_amount: 1.0, burst: 1.0, new_device: 0.7, night: 0.6}
+    rapid_transfers:            # many transfers to the same mule in a few minutes
+      weight: 0.20
+      txns: [5, 12]
+      amount_multiplier: [1, 3]
+      window_minutes: 10
+      signals: {burst: 1.0, new_device: 0.5, night: 0.6, high_amount: 0.5}
