@@ -27,23 +27,29 @@ connector_config = {
         "publication.autocreate.mode": "filtered",
         "tombstones.on.delete": "false",
         "decimal.handling.mode": "double",
+        # Plain JSON rows without the embedded schema (~10x smaller messages)
+        "key.converter": "org.apache.kafka.connect.json.JsonConverter",
+        "key.converter.schemas.enable": "false",
+        "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+        "value.converter.schemas.enable": "false",
     },
 }
 
 # -----------------------------
-# Send request to Debezium Connect
+# Create or update the connector (PUT .../config is idempotent)
 # -----------------------------
-url = "http://localhost:8083/connectors"
+name = connector_config["name"]
+url = f"http://localhost:8083/connectors/{name}/config"
 headers = {"Content-Type": "application/json"}
 
-response = requests.post(url, headers=headers, data=json.dumps(connector_config))
+response = requests.put(url, headers=headers, data=json.dumps(connector_config["config"]))
 
 # -----------------------------
 # Debug/Output
 # -----------------------------
 if response.status_code == 201:
     print("Connector created successfully!")
-elif response.status_code == 409:
-    print("Connector already exists.")
+elif response.status_code == 200:
+    print("Connector updated successfully!")
 else:
-    print(f"Failed to create connector ({response.status_code}): {response.text}")
+    print(f"Failed to create/update connector ({response.status_code}): {response.text}")

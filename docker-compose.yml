@@ -47,8 +47,9 @@ services:
       CONFIG_STORAGE_TOPIC: 'connect-configs'
       OFFSET_STORAGE_TOPIC: 'connect-offsets'
       STATUS_STORAGE_TOPIC: 'connect-status'
-      KEY_CONVERTER_SCHEMAS_ENABLE: 'false'
-      VALUE_CONVERTER_SCHEMAS_ENABLE: 'false'
+      # The debezium/connect image only maps CONNECT_* vars to worker properties
+      CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE: 'false'
+      CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: 'false'
       KEY_CONVERTER: 'org.apache.kafka.connect.json.JsonConverter'
       VALUE_CONVERTER: 'org.apache.kafka.connect.json.JsonConverter'
 
