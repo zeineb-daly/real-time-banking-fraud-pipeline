@@ -24,3 +24,5 @@ __pycache__/
 docker-compose.override.yml
 logs/
 data/
+ml/data/
+.ipynb_checkpoints/

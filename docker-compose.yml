@@ -142,6 +142,19 @@ services:
     ports:
       - "5433:5432"  # separate from banking-postgres to avoid conflict
 
+  jupyter:   # ML notebooks (fraud model) — open http://localhost:8888/?token=<JUPYTER_TOKEN>
+    build:
+      context: ./ml
+      dockerfile: Dockerfile
+    env_file: .env   # Snowflake credentials for the one-off feature export + JUPYTER_TOKEN
+    environment:
+      - ML_DIR=/home/jovyan/ml
+    volumes:
+      - ./ml:/home/jovyan/ml
+    ports:
+      - "8888:8888"
+
+
 volumes:
   airflow_postgres_data:
   zookeeper_data:
