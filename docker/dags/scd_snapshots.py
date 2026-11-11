@@ -19,7 +19,7 @@ with DAG(
     dag_id="SCD2_snapshots",
     default_args=default_args,
     description="Run dbt snapshots for SCD2 and build marts",
-    schedule_interval="@daily",     # Run daily (adjust if needed)
+    schedule_interval=None,         # Manual runs only (Trigger button)
     start_date=datetime(2025, 9, 1),
     catchup=False,
     tags=["dbt", "snapshots"],

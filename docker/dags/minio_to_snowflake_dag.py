@@ -26,6 +26,7 @@ SNOWFLAKE_ACCOUNT = os.getenv("SNOWFLAKE_ACCOUNT")
 SNOWFLAKE_WAREHOUSE = os.getenv("SNOWFLAKE_WAREHOUSE")
 SNOWFLAKE_DB = os.getenv("SNOWFLAKE_DB")
 SNOWFLAKE_SCHEMA = os.getenv("SNOWFLAKE_SCHEMA")
+SNOWFLAKE_SETUP_SQL = os.getenv("SNOWFLAKE_SETUP_SQL", "/opt/airflow/snowflake/setup.sql")
 
 # Tables to process
 TABLES = ["customers", "accounts", "transactions"]
@@ -36,6 +37,25 @@ MAX_WORKERS = 6
 # -----------------------------
 # Python Callables
 # -----------------------------
+def setup_snowflake():
+    """Create database, schema and RAW tables if missing (idempotent)."""
+    with open(SNOWFLAKE_SETUP_SQL, encoding="utf-8") as f:
+        sql = f.read()
+
+    # No database/schema here: they may not exist yet on the first run
+    conn = snowflake.connector.connect(
+        user=SNOWFLAKE_USER,
+        password=SNOWFLAKE_PASSWORD,
+        account=SNOWFLAKE_ACCOUNT,
+        warehouse=SNOWFLAKE_WAREHOUSE,
+    )
+    try:
+        for cur in conn.execute_string(sql):
+            print(f"OK: {cur.query.strip().splitlines()[0]}")
+    finally:
+        conn.close()
+
+
 def download_from_minio():
     """Download all files from MinIO for each table."""
     os.makedirs(LOCAL_DIR, exist_ok=True)
@@ -129,10 +149,16 @@ with DAG(
     dag_id="minio_to_snowflake_banking",
     default_args=default_args,
     description="Load MinIO parquet into Snowflake RAW tables with parallel uploads",
-    schedule_interval="*/1 * * * *",  # Every minute
+    schedule_interval=None,  # Manual runs only (Trigger button) — avoids burning Snowflake credits every minute
     start_date=datetime(2025, 1, 1),
     catchup=False,
 ) as dag:
+
+    task0 = PythonOperator(
+        task_id="setup_snowflake",
+        python_callable=setup_snowflake,
+        execution_timeout=timedelta(minutes=5),
+    )
 
     task1 = PythonOperator(
         task_id="download_minio",
@@ -147,4 +173,4 @@ with DAG(
         execution_timeout=timedelta(minutes=60),  # Timeout for loading 100k+ records
     )
 
-    task1 >> task2
+    task0 >> task1 >> task2
