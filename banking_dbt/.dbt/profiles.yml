@@ -1,0 +1,15 @@
+# dbt connection profile — credentials come from the .env file (no secrets here).
+# Mounted into Airflow at /home/airflow/.dbt (see docker-compose.yml).
+banking_dbt:
+  target: dev
+  outputs:
+    dev:
+      type: snowflake
+      account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
+      user: "{{ env_var('SNOWFLAKE_USER') }}"
+      password: "{{ env_var('SNOWFLAKE_PASSWORD') }}"
+      warehouse: "{{ env_var('SNOWFLAKE_WAREHOUSE') }}"
+      database: "{{ env_var('SNOWFLAKE_DB', 'BANKING') }}"
+      schema: ANALYTICS        # where dbt builds staging/marts/snapshots
+      threads: 4
+      client_session_keep_alive: false
