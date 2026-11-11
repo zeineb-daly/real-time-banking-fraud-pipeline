@@ -7,6 +7,8 @@ WITH source_data AS (
         account_type,
         balance,
         currency,
+        account_number,
+        data_source,
         created_at,
         dbt_valid_from   AS effective_from,
         dbt_valid_to     AS effective_to,

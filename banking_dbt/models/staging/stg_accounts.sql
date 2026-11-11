@@ -7,6 +7,8 @@ with ranked as (
         v:account_type::string  as account_type,
         v:balance::float        as balance,
         v:currency::string      as currency,
+        v:account_number::string as account_number,
+        v:data_source::string   as data_source,
         v:created_at::timestamp as created_at,
         current_timestamp       as load_timestamp,
         row_number() over (
@@ -22,6 +24,8 @@ select
     account_type,
     balance,
     currency,
+    account_number,
+    data_source,
     created_at,
     load_timestamp
 from ranked
