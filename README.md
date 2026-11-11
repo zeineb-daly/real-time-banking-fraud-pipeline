@@ -2,7 +2,7 @@
 
 End-to-end data platform that captures banking transactions in real time with **Change Data Capture**, lands them in a **Snowflake** warehouse, builds **behavioural fraud features with dbt**, and trains a **machine-learning model** that is benchmarked against a rule-based baseline.
 
-![Python](https://img.shields.io/badge/Python-3.11-blue) ![Kafka](https://img.shields.io/badge/Kafka-Debezium%20CDC-black) ![Snowflake](https://img.shields.io/badge/Snowflake-Data%20Warehouse-29B5E8) ![dbt](https://img.shields.io/badge/dbt-transformations-FF694B) ![Airflow](https://img.shields.io/badge/Airflow-orchestration-017CEE) ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED)
+[![CI](https://github.com/zeineb-daly/real-time-banking-fraud-pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/zeineb-daly/real-time-banking-fraud-pipeline/actions/workflows/ci.yml) ![Python](https://img.shields.io/badge/Python-3.12-blue) ![Kafka](https://img.shields.io/badge/Kafka-Debezium%20CDC-black) ![Snowflake](https://img.shields.io/badge/Snowflake-Data%20Warehouse-29B5E8) ![dbt](https://img.shields.io/badge/dbt-transformations-FF694B) ![Airflow](https://img.shields.io/badge/Airflow-orchestration-017CEE) ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED)
 
 ---
 
@@ -60,6 +60,7 @@ flowchart LR
 - **4 fraud scenarios**: `account_takeover`, `card_testing`, `balance_draining`, `rapid_transfers`.
 - Deliberate **overlap** between fraud and legitimate behaviour to avoid a trivially learnable recipe: partial frauds (30 %), legitimate travel, device changes, shopping bursts, and 5 % unlabelled fraud.
 - All parameters in `config.yaml`, validated at start-up.
+- **PaySim, tested then set aside**: `data-generator/paysim_replay.py` replays the public PaySim dataset through the same CDC pipeline. It was not used for the model because almost every account appears only once (no history for behavioural features) and the balance columns give the fraud away.
 
 **Pipeline reliability**
 - Persistent Kafka and ZooKeeper volumes (topics survive container recreation).
@@ -103,8 +104,6 @@ Accuracy is not used: with ~1 % fraud, predicting "never fraud" scores 99 %. Mod
 
 ### Results on the test period
 
-| Approach | Precision | Recall | F1 | PR-AUC |
-|---|---|---|---|---|
 | Approach | Alerts | True alerts | Precision | Recall | F1 | PR-AUC |
 |---|---|---|---|---|---|---|
 | Rule-based baseline (3 rules) | 154 | 122 | 79 % | 75 % | 0.770 | – |
@@ -153,7 +152,7 @@ A supervised model only recognises fraud that looks like what it has already see
 | Data stuck in the consumer | Batch size never reached at low traffic | Flush by size **or** time, flush on shutdown |
 | Possible data loss on crash | Offsets auto-committed before upload | Manual offset commit after upload |
 | Deletes never reached Snowflake | Consumer kept only `payload.after` | Identified; planned fix (keep `op` and `ts_ms`) |
-| Credits consumed continuously | DAG scheduled every minute | Manual-only DAGs + Snowflake resource monitor |
+| Credits consumed continuously | DAG scheduled every minute, CD on every push | Manual-only DAGs and CD, auto-suspending X-Small warehouse, resource monitor |
 | Too-easy synthetic labels | Fraud generated from the same signals used as features | Partial frauds, legitimate noise, unlabelled fraud, generalisation test |
 
 ## 8. Project structure
@@ -164,7 +163,7 @@ A supervised model only recognises fraud that looks like what it has already see
 ├── kafka-debezium/        # connector registration
 ├── consumer/              # kafka_to_minio.py
 ├── docker/dags/           # Airflow DAGs
-├── snowflake/             # setup.sql (database, schemas, RAW tables)
+├── snowflake/             # setup.sql (warehouse, database, RAW tables), cost_controls.sql
 ├── banking_dbt/
 │   ├── models/staging/    # stg_* views
 │   ├── models/marts/      # facts and dimensions
@@ -173,49 +172,69 @@ A supervised model only recognises fraud that looks like what it has already see
 │   └── snapshots/         # SCD Type 2
 ├── ml/                    # Dockerfile, export_features.py, fraud_model.ipynb, models/
 ├── docker-compose.yml
+├── .env.example           # configuration template (copy to .env)
+├── ruff.toml              # lint rules (local + CI)
 └── .github/workflows/     # CI / CD
 ```
 
 ## 9. Getting started
 
-**Prerequisites:** Docker Desktop, Python 3.11, a Snowflake account (trial is enough).
+**Prerequisites:** Docker Desktop, Python 3.12, a Snowflake account (trial is enough).
 
 ```bash
-# 1. Configuration
-cp .env.example .env            # fill in Snowflake and MinIO credentials
+# 1. Configuration: only the Snowflake values must be filled in, local defaults work as-is
+cp .env.example .env
 
-# 2. Start the platform
+# 2. Python environment for the scripts that run on the host
+python -m venv .venv
+source .venv/bin/activate                  # Windows: .venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+
+# 3. Start the platform (airflow-init migrates Airflow and creates the admin user from .env)
 docker compose up -d
 
-# 3. Create the source schema
+# 4. Create the source schema
 docker compose exec -T postgres psql -U postgres -d banking < postgres/schema.sql
+#    PowerShell: Get-Content postgres/schema.sql | docker compose exec -T postgres psql -U postgres -d banking
 
-# 4. Register the Debezium connector
+# 5. Register the Debezium connector
 python kafka-debezium/generate_and_post_connector.py
 
-# 5. Stream data
-python consumer/kafka_to_minio.py                    # terminal 1
-python data-generator/faker_generator.py --once      # terminal 2
+# 6. Stream data
+python consumer/kafka_to_minio.py                  # terminal 1, keep it running
+python data-generator/faker_generator.py --once    # terminal 2
 
-# 6. Load Snowflake: trigger "minio_to_snowflake_banking" in Airflow (http://localhost:8080)
+# 7. Load Snowflake: in Airflow, trigger "minio_to_snowflake_banking"
+#    (its first task creates the warehouse, database and RAW tables)
 
-# 7. Transform
-cd banking_dbt && dbt build --profiles-dir .dbt
+# 8. Transform: dbt reads the Snowflake credentials from environment variables
+set -a; source .env; set +a
+#    PowerShell: Get-Content .env | Where-Object { $_ -match '^[A-Z_]+=' } | ForEach-Object { $k, $v = $_ -split '=', 2; Set-Item "env:$k" $v }
+cd banking_dbt && dbt build --profiles-dir .dbt && cd ..
 
-# 8. Train the models (runs in Docker)
+# 9. Train the models (runs in Docker)
 docker compose up -d jupyter
-python ml/export_features.py                         # one-off export of features to ml/data/
-# then open ml/fraud_model.ipynb (http://localhost:8888, token in .env)
+docker compose run --rm jupyter python /home/jovyan/ml/export_features.py   # one-off export to ml/data/
+#    then open ml/fraud_model.ipynb at http://localhost:8888 (token = JUPYTER_TOKEN in .env)
 ```
 
 | Service | URL |
 |---|---|
-| Airflow | http://localhost:8080 |
+| Airflow | http://localhost:8080 (user from `AIRFLOW_ADMIN_USER` / `AIRFLOW_ADMIN_PASSWORD`) |
 | MinIO console | http://localhost:9001 |
 | Kafka Connect REST | http://localhost:8083/connectors |
 | Jupyter | http://localhost:8888 |
 
-**Cost control:** X-Small warehouse, `AUTO_SUSPEND = 60`, manual DAGs and a resource monitor capping credits.
+**Cost control (Snowflake)**
+
+- `snowflake/setup.sql`, run automatically by the DAG: X-Small warehouse with `AUTO_SUSPEND = 60` and `AUTO_RESUME`.
+- `snowflake/cost_controls.sql`, to run **once by hand** as `ACCOUNTADMIN` in a Snowsight worksheet: resource monitor `budget_projet` with a one-off budget of 20 credits (`FREQUENCY = NEVER`; notify at 75 %, suspend at 90 %, suspend immediately at 100 %). It uses `IF NOT EXISTS`, so re-running it never resets the credits already consumed.
+- Airflow DAGs and the CD workflow only run when triggered manually.
+
+**CI/CD**
+
+- **CI** (every push / pull request to `main`): ruff, configuration validation, `docker compose config` and `dbt parse`. No secrets and no Snowflake connection, so no credits.
+- **CD** (manual, *Actions > Run workflow*): `dbt build` on Snowflake. Requires the repository secrets `SNOWFLAKE_ACCOUNT`, `SNOWFLAKE_USER`, `SNOWFLAKE_PASSWORD`, `SNOWFLAKE_WAREHOUSE` and `SNOWFLAKE_ROLE` (a role limited to the `BANKING` database, not `ACCOUNTADMIN`).
 
 ## 10. Limitations
 
@@ -235,7 +254,7 @@ python ml/export_features.py                         # one-off export of feature
 
 ## Acknowledgements
 
-The initial CDC architecture was inspired by an open-source banking data pipeline project, then extended with realistic fraud simulation, pipeline hardening, cost-aware orchestration, feature engineering and an ML detection layer.
+The initial CDC architecture (PostgreSQL → Debezium → Kafka → MinIO → Snowflake → dbt) comes from [UtkarshReddyNathala/Real-Time-Banking-Data-Pipeline](https://github.com/UtkarshReddyNathala/Real-Time-Banking-Data-Pipeline). I extended it with realistic fraud simulation, pipeline hardening, cost-aware orchestration, feature engineering and an ML detection layer.
 
 ## Author
 
