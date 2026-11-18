@@ -1,11 +1,12 @@
-import boto3
-from kafka import KafkaConsumer
 import json
-import pandas as pd
-from datetime import datetime
 import os
 import time
+from datetime import datetime
+
+import boto3
+import pandas as pd
 from dotenv import load_dotenv
+from kafka import KafkaConsumer
 
 # -----------------------------
 # Load secrets from .env

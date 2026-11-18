@@ -1,4 +1,3 @@
-version: '3.8'
 services:
   zookeeper:
     image: confluentinc/cp-zookeeper:7.4.0
@@ -69,7 +68,8 @@ services:
               -c max_replication_slots=10
                
   minio:
-    image: minio/minio:latest
+    # MinIO no longer publishes versioned community tags: pinned by digest (RELEASE.2025-09-07T16-13-09Z)
+    image: minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
@@ -80,15 +80,33 @@ services:
     volumes:
       - ./docker/minio/data:/data
     
-  airflow-webserver:
+  # One-off: migrates the Airflow metadata DB and creates the web UI user, then exits.
+  airflow-init:
     build:
       context: .
       dockerfile: dockerfile-airflow.dockerfile
+    image: banking-airflow:local
+    depends_on:
+      airflow-postgres:
+        condition: service_healthy
+    environment:
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://${AIRFLOW_DB_USER}:${AIRFLOW_DB_PASSWORD}@airflow-postgres:5432/${AIRFLOW_DB_NAME}
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        airflow db migrate &&
+        (airflow users create --role Admin --firstname Admin --lastname User --email admin@example.com            --username "${AIRFLOW_ADMIN_USER:-admin}" --password "${AIRFLOW_ADMIN_PASSWORD:-admin}"          || echo "Airflow user already exists")
+
+  airflow-webserver:
+    image: banking-airflow:local
     container_name: airflow-webserver
     restart: always
     depends_on:
-      - airflow-scheduler
-      - airflow-postgres
+      airflow-init:
+        condition: service_completed_successfully
+      airflow-scheduler:
+        condition: service_started
     env_file: .env   # MinIO / Snowflake credentials for the DAGs
     environment:
       - AIRFLOW__CORE__LOAD_EXAMPLES=False
@@ -106,13 +124,12 @@ services:
     command: webserver
 
   airflow-scheduler:
-    build:
-      context: .
-      dockerfile: dockerfile-airflow.dockerfile
+    image: banking-airflow:local
     container_name: airflow-scheduler
     restart: always
     depends_on:
-      - airflow-postgres
+      airflow-init:
+        condition: service_completed_successfully
     env_file: .env   # MinIO / Snowflake credentials for the DAGs
     environment:
       - AIRFLOW__CORE__LOAD_EXAMPLES=False
@@ -127,8 +144,6 @@ services:
       - ./snowflake:/opt/airflow/snowflake
     command: scheduler
 
-
-
   airflow-postgres:
     image: postgres:15
     container_name: airflow-postgres
@@ -141,13 +156,29 @@ services:
       - airflow_postgres_data:/var/lib/postgresql/data
     ports:
       - "5433:5432"  # separate from banking-postgres to avoid conflict
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${AIRFLOW_DB_USER} -d ${AIRFLOW_DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  jupyter:   # ML notebooks (fraud model) — open http://localhost:8888/?token=<JUPYTER_TOKEN>
+    build:
+      context: ./ml
+      dockerfile: Dockerfile
+    env_file: .env   # Snowflake credentials for the one-off feature export + JUPYTER_TOKEN
+    environment:
+      - ML_DIR=/home/jovyan/ml
+    volumes:
+      - ./ml:/home/jovyan/ml
+    ports:
+      - "8888:8888"
 
 volumes:
   airflow_postgres_data:
   zookeeper_data:
   zookeeper_log:
   kafka_data:
-  postgres_data:
 networks:
   default:
     name: banking-mds-net

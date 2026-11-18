@@ -1,0 +1,127 @@
+{
+  "features": [
+    "amount",
+    "avg_amount_past",
+    "amount_vs_avg",
+    "nb_tx_past",
+    "hour_of_day",
+    "is_night",
+    "is_new_device",
+    "device_age_hours",
+    "is_new_country",
+    "nb_tx_10min",
+    "nb_tx_1h",
+    "is_new_recipient",
+    "nb_senders_to_recipient_24h",
+    "transaction_type_DEPOSIT",
+    "transaction_type_PAYMENT",
+    "transaction_type_TRANSFER",
+    "transaction_type_WITHDRAWAL",
+    "channel_ATM",
+    "channel_BRANCH",
+    "channel_MOBILE",
+    "channel_ONLINE",
+    "channel_POS",
+    "merchant_category_CLOTHING",
+    "merchant_category_DIGITAL_GOODS",
+    "merchant_category_ELECTRONICS",
+    "merchant_category_FUEL",
+    "merchant_category_GROCERY",
+    "merchant_category_HEALTH",
+    "merchant_category_ONLINE_RETAIL",
+    "merchant_category_RESTAURANT",
+    "merchant_category_TRAVEL",
+    "merchant_category_UTILITIES"
+  ],
+  "numeric": [
+    "amount",
+    "avg_amount_past",
+    "amount_vs_avg",
+    "nb_tx_past",
+    "hour_of_day",
+    "is_night",
+    "is_new_device",
+    "device_age_hours",
+    "is_new_country",
+    "nb_tx_10min",
+    "nb_tx_1h",
+    "is_new_recipient",
+    "nb_senders_to_recipient_24h"
+  ],
+  "categorical": {
+    "transaction_type": [
+      "DEPOSIT",
+      "PAYMENT",
+      "TRANSFER",
+      "WITHDRAWAL"
+    ],
+    "channel": [
+      "ATM",
+      "BRANCH",
+      "MOBILE",
+      "ONLINE",
+      "POS"
+    ],
+    "merchant_category": [
+      "CLOTHING",
+      "DIGITAL_GOODS",
+      "ELECTRONICS",
+      "FUEL",
+      "GROCERY",
+      "HEALTH",
+      "ONLINE_RETAIL",
+      "RESTAURANT",
+      "TRAVEL",
+      "UTILITIES"
+    ]
+  },
+  "thresholds": {
+    "xgboost": 0.9542407393455505,
+    "logistic_regression": 0.9905611278163917
+  },
+  "train_period": [
+    "2026-09-12 17:33:21.346731",
+    "2026-10-22 17:33:07.464232"
+  ],
+  "validation_from": "2026-10-14 16:18:57.560202240",
+  "test_metrics": {
+    "Rules (baseline)": {
+      "alerts": 154.0,
+      "true alerts": 122.0,
+      "precision": 0.7922077922077922,
+      "recall": 0.7484662576687117,
+      "F1": 0.7697160883280757,
+      "PR-AUC": NaN
+    },
+    "Logistic regression": {
+      "alerts": 157.0,
+      "true alerts": 139.0,
+      "precision": 0.8853503184713376,
+      "recall": 0.852760736196319,
+      "F1": 0.86875,
+      "PR-AUC": 0.9380914290829157
+    },
+    "XGBoost": {
+      "alerts": 150.0,
+      "true alerts": 134.0,
+      "precision": 0.8933333333333333,
+      "recall": 0.8220858895705522,
+      "F1": 0.8562300319488818,
+      "PR-AUC": 0.9423602128811469
+    }
+  },
+  "xgb_params": {
+    "n_estimators": 1000,
+    "learning_rate": 0.05,
+    "max_depth": 4,
+    "subsample": 0.8,
+    "colsample_bytree": 0.8,
+    "min_child_weight": 1,
+    "scale_pos_weight": 94.74295774647888,
+    "eval_metric": "aucpr",
+    "early_stopping_rounds": 50,
+    "random_state": 42,
+    "n_jobs": -1
+  },
+  "xgb_best_iteration": 94
+}

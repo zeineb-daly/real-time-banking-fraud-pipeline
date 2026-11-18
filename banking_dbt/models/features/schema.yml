@@ -1,0 +1,34 @@
+version: 2
+
+models:
+  - name: features_transactions
+    description: >
+      One row per Faker transaction with fraud-detection features computed from
+      the customer's past only. Label: is_fraud. fraud_type is for per-scenario
+      evaluation only and must never be used as a feature.
+    columns:
+      - name: transaction_id
+        tests:
+          - unique
+          - not_null
+      - name: customer_id
+        tests:
+          - not_null
+      - name: is_fraud
+        tests:
+          - not_null
+      - name: nb_tx_past
+        tests:
+          - non_negative
+      - name: nb_tx_10min
+        tests:
+          - non_negative
+      - name: nb_tx_1h
+        tests:
+          - non_negative
+      - name: nb_senders_to_recipient_24h
+        tests:
+          - non_negative
+      - name: device_age_hours
+        tests:
+          - non_negative

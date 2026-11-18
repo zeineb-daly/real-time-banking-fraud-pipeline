@@ -1,0 +1,11 @@
+# Lint configuration, used locally and in CI (ruff version pinned in .github/workflows/ci.yml)
+target-version = "py312"
+line-length = 120
+extend-exclude = ["docker/logs", "docker/plugins"]
+
+[lint]
+# pyflakes + core pycodestyle errors, import sorting, pyupgrade, comprehensions
+select = ["E4", "E7", "E9", "F", "I", "UP", "C4"]
+
+[lint.isort]
+known-first-party = ["config"]
